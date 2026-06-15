@@ -1,6 +1,13 @@
 const SEARCH_BUTTON_NAMES = [/^(检索|查询|搜索)$/];
 const SELECTION_ENTRY_NAMES = ["选课(按开课计划)", "选课（按开课计划）"];
 
+export function courseStatusKey(course) {
+  const id = String(course?.id ?? "").trim();
+  const classCode = String(course?.classCode ?? "").trim();
+  const name = String(course?.name ?? "").trim();
+  return [id, classCode].filter(Boolean).join("::") || name;
+}
+
 async function visibleText(target) {
   try {
     return await target.locator("body").innerText({ timeout: 1500 });
@@ -76,6 +83,67 @@ async function tryClickSearch(page) {
   }
 
   return null;
+}
+
+export function parseCapacity(context) {
+  const compact = String(context ?? "")
+    .replace(/[／]/g, "/")
+    .replace(/[：]/g, ":")
+    .replace(/\s+/g, "");
+
+  const limitSelectedAvailable = compact.match(
+    /限选\/已选\/可选:?(-?\d+)\/(-?\d+)\/(-?\d*)/
+  );
+  if (limitSelectedAvailable) {
+    const limit = Number(limitSelectedAvailable[1]);
+    const selected = Number(limitSelectedAvailable[2]);
+    const availableText = limitSelectedAvailable[3];
+    const available =
+      availableText === "" ? Math.max(0, limit - selected) : Number(availableText);
+    return {
+      limit,
+      selected,
+      available,
+      source: limitSelectedAvailable[0],
+    };
+  }
+
+  const labeledLimitSelectedAvailable = compact.match(
+    /限选[^\d-]{0,20}(-?\d+)[^\d-]{0,20}已选[^\d-]{0,20}(-?\d+)[^\d-]{0,20}可选[^\d-]{0,20}(-?\d+)/
+  );
+  if (labeledLimitSelectedAvailable) {
+    return {
+      limit: Number(labeledLimitSelectedAvailable[1]),
+      selected: Number(labeledLimitSelectedAvailable[2]),
+      available: Number(labeledLimitSelectedAvailable[3]),
+      source: labeledLimitSelectedAvailable[0],
+    };
+  }
+
+  const selectedExemptedRemaining = compact.match(
+    /已选\/免听:?(\d+)\/(\d+).*?剩余:?(-?\d+)/
+  );
+  if (selectedExemptedRemaining) {
+    return {
+      selected: Number(selectedExemptedRemaining[1]),
+      exempted: Number(selectedExemptedRemaining[2]),
+      available: Number(selectedExemptedRemaining[3]),
+      source: selectedExemptedRemaining[0],
+    };
+  }
+
+  const availability = compact.match(/(?:余量|剩余名额|剩余|可选人数):?(-?\d+)/);
+  if (availability) {
+    return {
+      available: Number(availability[1]),
+      source: availability[0],
+    };
+  }
+
+  return {
+    available: null,
+    source: "",
+  };
 }
 
 export async function refreshCoursePage(page, config = {}) {

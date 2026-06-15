@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { chromium } from "playwright-core";
-import { refreshCoursePage } from "./monitor-core.js";
+import { courseStatusKey, parseCapacity, refreshCoursePage } from "./monitor-core.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -115,54 +115,6 @@ async function loadCourses() {
       normalizedStrongKeywords: strongKeywords.map(normalizeText),
     };
   });
-}
-
-function parseCapacity(context) {
-  const normalized = context.replace(/[／]/g, "/");
-
-  const triple = normalized.match(
-    /限选\s*\/\s*已选\s*\/\s*可选\s*[:：]?\s*(\d+)\s*\/\s*(\d+)\s*\/\s*(\d*)/
-  );
-  if (triple) {
-    const limit = Number(triple[1]);
-    const selected = Number(triple[2]);
-    const availableText = triple[3];
-    const available =
-      availableText === "" ? Math.max(0, limit - selected) : Number(availableText);
-    return {
-      limit,
-      selected,
-      available,
-      source: triple[0],
-    };
-  }
-
-  const labeledTriple = normalized.match(
-    /限选[^\d]{0,20}(\d+)[^\d]{0,20}已选[^\d]{0,20}(\d+)[^\d]{0,20}可选[^\d]{0,20}(\d+)/
-  );
-  if (labeledTriple) {
-    return {
-      limit: Number(labeledTriple[1]),
-      selected: Number(labeledTriple[2]),
-      available: Number(labeledTriple[3]),
-      source: labeledTriple[0],
-    };
-  }
-
-  const availability = normalized.match(
-    /(?:余量|剩余名额|剩余|可选人数)\s*[:：]?\s*(\d+)/
-  );
-  if (availability) {
-    return {
-      available: Number(availability[1]),
-      source: availability[0],
-    };
-  }
-
-  return {
-    available: null,
-    source: "",
-  };
 }
 
 function getCourseContext(text, course) {
@@ -389,7 +341,8 @@ async function runCheck(page, courses, config) {
   const results = courses.map((course) => analyzeCourse(text, course));
 
   for (const result of results) {
-    const previous = lastStatus[result.course.id];
+    const statusKey = courseStatusKey(result.course);
+    const previous = lastStatus[statusKey];
     const line = [
       `[${result.course.id}] ${result.course.name}`,
       statusLabel(result),
@@ -405,7 +358,7 @@ async function runCheck(page, courses, config) {
       console.log(`  已发送飞书提醒：${result.course.name}`);
     }
 
-    nextStatus[result.course.id] = {
+    nextStatus[statusKey] = {
       fingerprint: result.fingerprint,
       status: result.status,
       available: result.available,
