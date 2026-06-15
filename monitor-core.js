@@ -160,6 +160,107 @@ export function parseCapacity(context) {
   };
 }
 
+async function frameBodyText(frame, timeout = 5000) {
+  try {
+    return await frame.locator("body").innerText({ timeout });
+  } catch {
+    return "";
+  }
+}
+
+function uniqueNonEmpty(parts) {
+  const seen = new Set();
+  const output = [];
+
+  for (const part of parts) {
+    const text = String(part ?? "").trim();
+    if (!text || seen.has(text)) continue;
+    seen.add(text);
+    output.push(text);
+  }
+
+  return output;
+}
+
+async function scrollFrameAndCollectText(frame, config) {
+  try {
+    return await frame.evaluate(
+      async ({ stepPixels, delayMs, maxSteps, maxContainers }) => {
+        const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+        const text = () => document.body?.innerText || "";
+        const candidates = [];
+        const addCandidate = (element) => {
+          if (element && !candidates.includes(element)) candidates.push(element);
+        };
+
+        addCandidate(document.scrollingElement || document.documentElement);
+
+        for (const element of Array.from(document.querySelectorAll("*"))) {
+          const style = window.getComputedStyle(element);
+          const overflow = `${style.overflowY} ${style.overflow}`;
+          const isScrollable =
+            element.scrollHeight > element.clientHeight + 20 &&
+            !/(hidden|clip)/.test(overflow);
+
+          if (isScrollable) addCandidate(element);
+          if (candidates.length >= maxContainers) break;
+        }
+
+        const collected = [];
+        for (const element of candidates.slice(0, maxContainers)) {
+          const originalTop = element.scrollTop;
+          const maxTop = Math.max(0, element.scrollHeight - element.clientHeight);
+          if (maxTop < 20) continue;
+
+          for (let step = 0; step <= maxSteps; step += 1) {
+            const nextTop = Math.min(maxTop, step * stepPixels);
+            element.scrollTop = nextTop;
+            element.dispatchEvent(new Event("scroll", { bubbles: true }));
+            window.dispatchEvent(new Event("scroll"));
+            await sleep(delayMs);
+            collected.push(text());
+            if (nextTop >= maxTop) break;
+          }
+
+          element.scrollTop = originalTop;
+          element.dispatchEvent(new Event("scroll", { bubbles: true }));
+        }
+
+        return Array.from(new Set(collected));
+      },
+      {
+        stepPixels: config.autoScrollStepPixels ?? 900,
+        delayMs: config.autoScrollDelayMs ?? 50,
+        maxSteps: config.autoScrollMaxSteps ?? 20,
+        maxContainers: config.autoScrollMaxContainers ?? 3,
+      }
+    );
+  } catch {
+    return [];
+  }
+}
+
+export async function collectFrameText(frame, config = {}) {
+  const parts = [await frameBodyText(frame)];
+
+  if (config.autoScroll) {
+    parts.push(...(await scrollFrameAndCollectText(frame, config)));
+  }
+
+  return uniqueNonEmpty(parts).join("\n\n--- scrolled ---\n\n");
+}
+
+export async function collectPageText(page, config = {}) {
+  const parts = [];
+
+  for (const frame of page.frames()) {
+    const text = await collectFrameText(frame, config);
+    if (text.trim()) parts.push(text);
+  }
+
+  return parts.join("\n\n--- frame ---\n\n");
+}
+
 export async function refreshCoursePage(page, config = {}) {
   const refreshMode = config.refreshMode || "soft";
 

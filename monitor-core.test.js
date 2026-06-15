@@ -101,3 +101,38 @@ test("course display label includes teacher and section details", () => {
     "[COURSE001] 示例课程 | 张三 | CLASS001 | 方向A"
   );
 });
+
+test("collects text from all frames and auto-scroll results", async () => {
+  const calls = [];
+  const frame = {
+    locator() {
+      return {
+        async innerText() {
+          return "顶部课程";
+        },
+      };
+    },
+    async evaluate(_fn, options) {
+      calls.push(options);
+      return ["底部课程", "底部课程"];
+    },
+  };
+  const page = {
+    frames() {
+      return [frame];
+    },
+  };
+  const { collectPageText } = await import("./monitor-core.js");
+
+  const text = await collectPageText(page, {
+    autoScroll: true,
+    autoScrollStepPixels: 900,
+    autoScrollDelayMs: 50,
+    autoScrollMaxSteps: 20,
+    autoScrollMaxContainers: 3,
+  });
+
+  assert.equal(calls.length, 1);
+  assert.match(text, /顶部课程/);
+  assert.match(text, /底部课程/);
+});

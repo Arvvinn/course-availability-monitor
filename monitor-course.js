@@ -7,6 +7,7 @@ import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { chromium } from "playwright-core";
 import {
+  collectPageText,
   courseDisplayLabel,
   courseStatusKey,
   parseCapacity,
@@ -47,6 +48,11 @@ function getConfig() {
     alertOnUncertain: readBool("ALERT_ON_UNCERTAIN", true),
     refreshMode: process.env.REFRESH_MODE || "soft",
     saveScreenshots: readBool("SAVE_SCREENSHOTS", false),
+    autoScroll: readBool("AUTO_SCROLL", true),
+    autoScrollStepPixels: readNumber("AUTO_SCROLL_STEP_PIXELS", 900),
+    autoScrollDelayMs: readNumber("AUTO_SCROLL_DELAY_MS", 50),
+    autoScrollMaxSteps: readNumber("AUTO_SCROLL_MAX_STEPS", 20),
+    autoScrollMaxContainers: readNumber("AUTO_SCROLL_MAX_CONTAINERS", 3),
   };
 }
 
@@ -314,19 +320,6 @@ async function waitForManualLogin() {
   }
 }
 
-async function getAllPageText(page) {
-  const parts = [];
-  for (const frame of page.frames()) {
-    try {
-      const text = await frame.locator("body").innerText({ timeout: 5000 });
-      if (text.trim()) parts.push(text);
-    } catch {
-      // Some cross-origin or transient frames may not expose text. Ignore them.
-    }
-  }
-  return parts.join("\n\n--- frame ---\n\n");
-}
-
 async function saveScreenshot(page, config) {
   if (!config.saveScreenshots) return "";
 
@@ -346,7 +339,7 @@ async function runCheck(page, courses, config) {
   }
 
   const screenshotPath = await saveScreenshot(page, config);
-  const text = await getAllPageText(page);
+  const text = await collectPageText(page, config);
   const lastStatus = await readJson(paths.lastStatus, {});
   const nextStatus = { ...lastStatus };
   const results = courses.map((course) => analyzeCourse(text, course));

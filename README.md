@@ -9,6 +9,7 @@
 - 不绕过验证码、登录限制或系统风控。
 - 默认每 1 分钟检查一次。
 - 默认不保存截图，只读取页面文字。
+- 默认会快速滚动页面和可滚动列表，尽量读取不在当前屏幕内的课程。
 
 ## 适用场景
 
@@ -118,6 +119,8 @@ REFRESH_MODE=soft
 
 这个模式不会按浏览器刷新按钮，而是在教务系统页面内尝试点击“选课(按开课计划)”和“检索/查询/搜索”来更新数据，避免刷新后回到主控首页。
 
+如果课程列表很长，脚本默认会自动滚动页面和可滚动列表，把滚动过程中出现的文字合并后再匹配课程。这个过程通常只需要几秒，不需要人工滚轮。
+
 ## 常用配置
 
 `.env` 里可以改：
@@ -127,6 +130,11 @@ COURSE_PAGE_URL=https://xk.henu.edu.cn
 REFRESH_INTERVAL_MINUTES=1
 REFRESH_MODE=soft
 SAVE_SCREENSHOTS=false
+AUTO_SCROLL=true
+AUTO_SCROLL_STEP_PIXELS=900
+AUTO_SCROLL_DELAY_MS=50
+AUTO_SCROLL_MAX_STEPS=20
+AUTO_SCROLL_MAX_CONTAINERS=3
 BROWSER_CHANNEL=msedge
 HEADLESS=false
 SEND_UNCHANGED_ALERTS=false
@@ -138,6 +146,11 @@ ALERT_ON_UNCERTAIN=true
 - `REFRESH_INTERVAL_MINUTES`：检查间隔，默认 1 分钟。
 - `REFRESH_MODE`：刷新方式，默认 `soft`。
 - `SAVE_SCREENSHOTS`：是否保存截图，默认 `false`。
+- `AUTO_SCROLL`：是否自动滚动扫描页面，默认 `true`。
+- `AUTO_SCROLL_STEP_PIXELS`：每次滚动的像素距离。
+- `AUTO_SCROLL_DELAY_MS`：每次滚动后等待页面更新的时间。
+- `AUTO_SCROLL_MAX_STEPS`：每个可滚动区域最多滚动多少步。
+- `AUTO_SCROLL_MAX_CONTAINERS`：最多扫描多少个可滚动区域。
 - `BROWSER_CHANNEL`：默认 `msedge`，也可以改成 `chrome`。
 - `SEND_UNCHANGED_ALERTS`：默认只在状态变化时提醒，改成 `true` 会每次都提醒。
 - `ALERT_ON_UNCERTAIN`：页面匹配到课程但没解析出余量时是否提醒。
