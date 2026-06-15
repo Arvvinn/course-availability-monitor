@@ -7,7 +7,8 @@
 - 不保存教务系统账号或密码。
 - 不自动点击“选课”或“提交”。
 - 不绕过验证码、登录限制或系统风控。
-- 默认每 5 分钟检查一次。
+- 默认每 1 分钟检查一次。
+- 默认不保存截图，只读取页面文字。
 
 ## 适用场景
 
@@ -99,7 +100,7 @@ copy courses.example.json courses.json
 npm run once
 ```
 
-脚本会打开浏览器。你需要手动登录教务系统，进入选课页面，然后回到终端按回车。脚本会检查一次并保存截图。
+脚本会打开浏览器。你需要手动登录教务系统，进入选课页面，然后回到终端按回车。脚本会检查一次并读取页面文字。
 
 ## 持续监控
 
@@ -123,8 +124,9 @@ REFRESH_MODE=soft
 
 ```env
 COURSE_PAGE_URL=https://xk.henu.edu.cn
-REFRESH_INTERVAL_MINUTES=5
+REFRESH_INTERVAL_MINUTES=1
 REFRESH_MODE=soft
+SAVE_SCREENSHOTS=false
 BROWSER_CHANNEL=msedge
 HEADLESS=false
 SEND_UNCHANGED_ALERTS=false
@@ -133,7 +135,9 @@ ALERT_ON_UNCERTAIN=true
 
 说明：
 
-- `REFRESH_INTERVAL_MINUTES`：检查间隔，默认 5 分钟。
+- `REFRESH_INTERVAL_MINUTES`：检查间隔，默认 1 分钟。
+- `REFRESH_MODE`：刷新方式，默认 `soft`。
+- `SAVE_SCREENSHOTS`：是否保存截图，默认 `false`。
 - `BROWSER_CHANNEL`：默认 `msedge`，也可以改成 `chrome`。
 - `SEND_UNCHANGED_ALERTS`：默认只在状态变化时提醒，改成 `true` 会每次都提醒。
 - `ALERT_ON_UNCERTAIN`：页面匹配到课程但没解析出余量时是否提醒。
@@ -145,7 +149,7 @@ ALERT_ON_UNCERTAIN=true
 - `.env`：你的飞书 Webhook 和本地配置。
 - `courses.json`：你要监控的课程。
 - `browser-profile/`：浏览器登录会话。
-- `screenshots/`：每次检查保存的截图。
+- `screenshots/`：仅当 `SAVE_SCREENSHOTS=true` 时保存的截图。
 - `last-status.json`：上一次检查状态，用来减少重复提醒。
 
 ## 注意事项

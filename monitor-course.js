@@ -40,12 +40,13 @@ function getConfig() {
     webhook: process.env.FEISHU_WEBHOOK ?? "",
     feishuSecret: process.env.FEISHU_SECRET ?? "",
     coursePageUrl: process.env.COURSE_PAGE_URL || "https://xk.henu.edu.cn",
-    intervalMinutes: readNumber("REFRESH_INTERVAL_MINUTES", 5),
+    intervalMinutes: readNumber("REFRESH_INTERVAL_MINUTES", 1),
     browserChannel: process.env.BROWSER_CHANNEL || "msedge",
     headless: readBool("HEADLESS", false),
     sendUnchangedAlerts: readBool("SEND_UNCHANGED_ALERTS", false),
     alertOnUncertain: readBool("ALERT_ON_UNCERTAIN", true),
     refreshMode: process.env.REFRESH_MODE || "soft",
+    saveScreenshots: readBool("SAVE_SCREENSHOTS", false),
   };
 }
 
@@ -210,8 +211,11 @@ function buildAlertText(result, screenshotPath, pageUrl) {
     `状态：${statusLabel(result)}`,
     `时间：${formatTime()}`,
     `页面：${pageUrl}`,
-    `截图：${screenshotPath}`,
   ];
+
+  if (screenshotPath) {
+    lines.push(`截图：${screenshotPath}`);
+  }
 
   if (result.capacitySource) {
     lines.push(`识别字段：${result.capacitySource}`);
@@ -323,7 +327,9 @@ async function getAllPageText(page) {
   return parts.join("\n\n--- frame ---\n\n");
 }
 
-async function saveScreenshot(page) {
+async function saveScreenshot(page, config) {
+  if (!config.saveScreenshots) return "";
+
   await fs.mkdir(paths.screenshots, { recursive: true });
   const screenshotPath = path.join(paths.screenshots, `course-${fileTimestamp()}.png`);
   await page.screenshot({ path: screenshotPath, fullPage: true });
@@ -339,7 +345,7 @@ async function runCheck(page, courses, config) {
     console.warn(`刷新页面数据时出现问题，继续尝试读取当前页面：${error.message}`);
   }
 
-  const screenshotPath = await saveScreenshot(page);
+  const screenshotPath = await saveScreenshot(page, config);
   const text = await getAllPageText(page);
   const lastStatus = await readJson(paths.lastStatus, {});
   const nextStatus = { ...lastStatus };
@@ -372,7 +378,9 @@ async function runCheck(page, courses, config) {
   }
 
   await writeJson(paths.lastStatus, nextStatus);
-  console.log(`截图已保存：${screenshotPath}`);
+  if (screenshotPath) {
+    console.log(`截图已保存：${screenshotPath}`);
+  }
 }
 
 function sleep(ms) {
