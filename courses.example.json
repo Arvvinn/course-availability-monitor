@@ -1,0 +1,27 @@
+[
+  {
+    "id": "COURSE001",
+    "name": "示例课程A",
+    "teacher": "张三",
+    "classCode": "CLASS001",
+    "keywords": [
+      "COURSE001",
+      "示例课程A",
+      "张三",
+      "CLASS001"
+    ]
+  },
+  {
+    "id": "COURSE002",
+    "name": "示例课程B",
+    "teacher": "李四",
+    "classCode": "CLASS002",
+    "keywords": [
+      "COURSE002",
+      "示例课程B",
+      "李四",
+      "CLASS002",
+      "课程方向或班级名称"
+    ]
+  }
+]
