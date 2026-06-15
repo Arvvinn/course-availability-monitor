@@ -44,7 +44,7 @@ function getConfig() {
   return {
     webhook: process.env.FEISHU_WEBHOOK ?? "",
     feishuSecret: process.env.FEISHU_SECRET ?? "",
-    coursePageUrl: process.env.COURSE_PAGE_URL || "https://xk.henu.edu.cn",
+    coursePageUrl: process.env.COURSE_PAGE_URL || "https://example.edu.cn",
     intervalMinutes: readNumber("REFRESH_INTERVAL_MINUTES", 1),
     browserChannel: process.env.BROWSER_CHANNEL || "msedge",
     headless: readBool("HEADLESS", false),

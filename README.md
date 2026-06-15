@@ -1,6 +1,8 @@
-# 河南大学选课余量监控
+# 选课余量监控
 
 这是一个本地运行的选课余量提醒脚本。它会打开浏览器，由你手动登录教务系统，然后定时检查页面上的课程余量，并通过飞书自定义机器人提醒你。
+
+使用前请先阅读 [免责声明](./DISCLAIMER.md)。本项目仅用于个人学习和信息提醒，使用者应自行确认使用方式符合所在学校和教务系统的相关规定。
 
 它只做被动监控：
 
@@ -137,7 +139,7 @@ REFRESH_MODE=soft
 `.env` 里可以改：
 
 ```env
-COURSE_PAGE_URL=https://xk.henu.edu.cn
+COURSE_PAGE_URL=https://example.edu.cn
 REFRESH_INTERVAL_MINUTES=1
 REFRESH_MODE=soft
 SAVE_SCREENSHOTS=false
