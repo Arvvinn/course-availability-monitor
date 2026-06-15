@@ -2,8 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  buildAlertText,
   courseDisplayLabel,
   courseStatusKey,
+  createSimulatedOpenResult,
   parseCapacity,
   refreshCoursePage,
 } from "./monitor-core.js";
@@ -135,4 +137,25 @@ test("collects text from all frames and auto-scroll results", async () => {
   assert.equal(calls.length, 1);
   assert.match(text, /顶部课程/);
   assert.match(text, /底部课程/);
+});
+
+test("builds simulated open alert text without a screenshot path", () => {
+  const result = createSimulatedOpenResult(
+    {
+      id: "COURSE001",
+      name: "示例课程",
+      teacher: "张三",
+      classCode: "CLASS001",
+      keywords: ["COURSE001", "示例课程", "张三", "CLASS001", "方向A"],
+    },
+    2
+  );
+  const text = buildAlertText(result, "", "https://xk.example.test", {
+    simulated: true,
+  });
+
+  assert.match(text, /模拟测试/);
+  assert.match(text, /有可选名额：2/);
+  assert.match(text, /请马上打开教务系统确认并手动选课/);
+  assert.doesNotMatch(text, /截图/);
 });

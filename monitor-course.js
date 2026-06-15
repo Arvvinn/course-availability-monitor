@@ -7,11 +7,14 @@ import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { chromium } from "playwright-core";
 import {
+  buildAlertText,
   collectPageText,
   courseDisplayLabel,
   courseStatusKey,
+  createSimulatedOpenResult,
   parseCapacity,
   refreshCoursePage,
+  statusLabel,
 } from "./monitor-core.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -199,38 +202,6 @@ function shouldNotify(result, previous, config) {
   return !previous || previous.fingerprint !== result.fingerprint;
 }
 
-function statusLabel(result) {
-  if (result.status === "open") return `有可选名额：${result.available}`;
-  if (result.status === "full") return "暂无余量";
-  if (result.status === "uncertain") return "已匹配到课程，但未能解析可选人数，需要人工确认";
-  return "本页未匹配到该课程";
-}
-
-function buildAlertText(result, screenshotPath, pageUrl) {
-  const course = result.course;
-  const lines = [
-    "选课监控提醒",
-    "",
-    `课程：[${course.id}] ${course.name}`,
-    `教师：${course.teacher || "未配置"}`,
-    `教学班：${course.classCode || "未配置"}`,
-    `状态：${statusLabel(result)}`,
-    `时间：${formatTime()}`,
-    `页面：${pageUrl}`,
-  ];
-
-  if (screenshotPath) {
-    lines.push(`截图：${screenshotPath}`);
-  }
-
-  if (result.capacitySource) {
-    lines.push(`识别字段：${result.capacitySource}`);
-  }
-
-  lines.push("", "请手动打开教务系统确认；脚本不会自动选课。");
-  return lines.join("\n");
-}
-
 async function sendFeishu(config, text) {
   if (isMissingWebhook(config.webhook)) {
     throw new Error("FEISHU_WEBHOOK 未配置，请先编辑 .env。");
@@ -387,6 +358,17 @@ async function main() {
   if (args.has("--test-feishu")) {
     await sendFeishu(config, `选课监控测试\n\n时间：${formatTime()}\n如果收到这条消息，飞书机器人可用。`);
     console.log("飞书测试消息已发送。");
+    return;
+  }
+
+  if (args.has("--test-alert")) {
+    const course = courses[0];
+    const result = createSimulatedOpenResult(course, 1);
+    const alertText = buildAlertText(result, "", config.coursePageUrl, {
+      simulated: true,
+    });
+    await sendFeishu(config, alertText);
+    console.log(`脚本模拟抓课提醒已发送：${courseDisplayLabel(course)}`);
     return;
   }
 

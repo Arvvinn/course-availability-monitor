@@ -22,6 +22,66 @@ export function courseDisplayLabel(course) {
   return suffix ? `${prefix} | ${suffix}` : prefix;
 }
 
+function formatTime(date = new Date()) {
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
+export function statusLabel(result) {
+  if (result.status === "open") return `有可选名额：${result.available}`;
+  if (result.status === "full") return "暂无余量";
+  if (result.status === "uncertain") {
+    return "已匹配到课程，但未能解析可选人数，需要人工确认";
+  }
+  return "本页未匹配到该课程";
+}
+
+export function buildAlertText(result, screenshotPath, pageUrl, options = {}) {
+  const course = result.course;
+  const lines = [
+    options.simulated ? "选课监控提醒（模拟测试）" : "选课监控提醒",
+    "",
+    `课程：${courseDisplayLabel(course)}`,
+    `状态：${statusLabel(result)}`,
+    `时间：${formatTime()}`,
+    `页面：${pageUrl}`,
+  ];
+
+  if (screenshotPath) {
+    lines.push(`截图：${screenshotPath}`);
+  }
+
+  if (result.capacitySource) {
+    lines.push(`识别字段：${result.capacitySource}`);
+  }
+
+  lines.push(
+    "",
+    options.simulated
+      ? "这是脚本模拟测试，不代表真的有课余量。请马上打开教务系统确认并手动选课。"
+      : "请马上打开教务系统确认并手动选课；脚本不会自动选课。"
+  );
+  return lines.join("\n");
+}
+
+export function createSimulatedOpenResult(course, available = 1) {
+  return {
+    course,
+    status: "open",
+    available,
+    matchedKeywords: Array.isArray(course?.keywords) ? course.keywords : [],
+    capacitySource: "模拟测试",
+    fingerprint: `simulated::open::${available}`,
+  };
+}
+
 async function visibleText(target) {
   try {
     return await target.locator("body").innerText({ timeout: 1500 });

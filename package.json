@@ -7,6 +7,7 @@
     "monitor": "node monitor-course.js",
     "once": "node monitor-course.js --once",
     "test-feishu": "node monitor-course.js --test-feishu",
+    "test-alert": "node monitor-course.js --test-alert",
     "test": "node --test"
   },
   "dependencies": {
