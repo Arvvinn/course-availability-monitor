@@ -6,7 +6,12 @@ import { fileURLToPath } from "node:url";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { chromium } from "playwright-core";
-import { courseStatusKey, parseCapacity, refreshCoursePage } from "./monitor-core.js";
+import {
+  courseDisplayLabel,
+  courseStatusKey,
+  parseCapacity,
+  refreshCoursePage,
+} from "./monitor-core.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -344,7 +349,7 @@ async function runCheck(page, courses, config) {
     const statusKey = courseStatusKey(result.course);
     const previous = lastStatus[statusKey];
     const line = [
-      `[${result.course.id}] ${result.course.name}`,
+      courseDisplayLabel(result.course),
       statusLabel(result),
       result.capacitySource ? `(${result.capacitySource})` : "",
     ]
@@ -355,7 +360,7 @@ async function runCheck(page, courses, config) {
     if (shouldNotify(result, previous, config)) {
       const alertText = buildAlertText(result, screenshotPath, page.url());
       await sendFeishu(config, alertText);
-      console.log(`  已发送飞书提醒：${result.course.name}`);
+      console.log(`  已发送飞书提醒：${courseDisplayLabel(result.course)}`);
     }
 
     nextStatus[statusKey] = {

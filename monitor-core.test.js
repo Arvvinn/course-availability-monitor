@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { courseStatusKey, parseCapacity, refreshCoursePage } from "./monitor-core.js";
+import {
+  courseDisplayLabel,
+  courseStatusKey,
+  parseCapacity,
+  refreshCoursePage,
+} from "./monitor-core.js";
 
 test("soft refresh does not use browser-level reload", async () => {
   const calls = [];
@@ -81,5 +86,18 @@ test("course status key distinguishes sections of the same course", () => {
   assert.equal(
     courseStatusKey({ id: "COURSE001", classCode: "CLASS002", name: "示例课程" }),
     "COURSE001::CLASS002"
+  );
+});
+
+test("course display label includes teacher and section details", () => {
+  assert.equal(
+    courseDisplayLabel({
+      id: "COURSE001",
+      name: "示例课程",
+      teacher: "张三",
+      classCode: "CLASS001",
+      keywords: ["COURSE001", "示例课程", "张三", "CLASS001", "方向A"],
+    }),
+    "[COURSE001] 示例课程 | 张三 | CLASS001 | 方向A"
   );
 });

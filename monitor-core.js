@@ -8,6 +8,20 @@ export function courseStatusKey(course) {
   return [id, classCode].filter(Boolean).join("::") || name;
 }
 
+export function courseDisplayLabel(course) {
+  const id = String(course?.id ?? "").trim();
+  const name = String(course?.name ?? "").trim();
+  const teacher = String(course?.teacher ?? "").trim();
+  const classCode = String(course?.classCode ?? "").trim();
+  const keywords = Array.isArray(course?.keywords) ? course.keywords : [];
+  const lastKeyword = String(keywords.at(-1) ?? "").trim();
+  const suffix = [teacher, classCode, lastKeyword]
+    .filter((part, index, parts) => part && parts.indexOf(part) === index)
+    .join(" | ");
+  const prefix = id ? `[${id}] ${name}` : name;
+  return suffix ? `${prefix} | ${suffix}` : prefix;
+}
+
 async function visibleText(target) {
   try {
     return await target.locator("body").innerText({ timeout: 1500 });
