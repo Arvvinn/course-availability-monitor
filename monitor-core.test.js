@@ -7,6 +7,7 @@ import {
   courseStatusKey,
   createSimulatedOpenResult,
   parseCapacity,
+  revealCourseOnPage,
   refreshCoursePage,
 } from "./monitor-core.js";
 
@@ -158,4 +159,38 @@ test("builds simulated open alert text without a screenshot path", () => {
   assert.match(text, /有可选名额：2/);
   assert.match(text, /请马上打开教务系统确认并手动选课/);
   assert.doesNotMatch(text, /截图/);
+});
+
+test("reveal helper focuses page and asks frames to locate course without clicking", async () => {
+  const calls = [];
+  const frame = {
+    async evaluate(_fn, payload) {
+      calls.push(payload);
+      return { found: true, matchedText: "CLASS001 示例课程" };
+    },
+  };
+  const page = {
+    async bringToFront() {
+      calls.push("bringToFront");
+    },
+    frames() {
+      return [frame];
+    },
+  };
+
+  const result = await revealCourseOnPage(
+    page,
+    {
+      id: "COURSE001",
+      name: "示例课程",
+      teacher: "张三",
+      classCode: "CLASS001",
+      keywords: ["COURSE001", "示例课程", "张三", "CLASS001", "方向A"],
+    },
+    { assistScrollMaxSteps: 3 }
+  );
+
+  assert.equal(result.found, true);
+  assert.equal(calls[0], "bringToFront");
+  assert.deepEqual(calls[1].needles, ["CLASS001", "COURSE001", "示例课程", "张三", "方向A"]);
 });

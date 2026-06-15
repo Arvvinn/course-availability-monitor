@@ -321,6 +321,191 @@ export async function collectPageText(page, config = {}) {
   return parts.join("\n\n--- frame ---\n\n");
 }
 
+function revealNeedles(course) {
+  const keywords = Array.isArray(course?.keywords) ? course.keywords : [];
+  return uniqueNonEmpty([
+    course?.classCode,
+    course?.id,
+    course?.name,
+    course?.teacher,
+    ...keywords,
+  ]);
+}
+
+async function revealCourseInFrame(frame, needles, config) {
+  try {
+    return await frame.evaluate(
+      async ({ needles, stepPixels, delayMs, maxSteps, maxContainers }) => {
+        const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+        const normalize = (value) =>
+          String(value ?? "")
+            .replace(/[ \t\r\n]+/g, "")
+            .replace(/[－–—]/g, "-")
+            .replace(/[，]/g, "/")
+            .replace(/[（]/g, "(")
+            .replace(/[）]/g, ")");
+        const normalizedNeedles = needles.map(normalize).filter(Boolean);
+        const primaryNeedle = normalizedNeedles[0] || "";
+
+        const elementText = (element) => element?.innerText || element?.textContent || "";
+        const pageContainsCourse = () => {
+          const bodyText = normalize(document.body?.innerText || "");
+          return normalizedNeedles.some((needle) => bodyText.includes(needle));
+        };
+        const scoreElement = (element) => {
+          const text = normalize(elementText(element));
+          if (!text) return null;
+
+          let score = 0;
+          let matches = 0;
+          for (const needle of normalizedNeedles) {
+            if (!text.includes(needle)) continue;
+            matches += 1;
+            score += needle === primaryNeedle ? 10 : 3;
+          }
+
+          if (matches === 0) return null;
+          if (primaryNeedle && !text.includes(primaryNeedle) && matches < 2) return null;
+
+          return { score: score - Math.min(text.length / 600, 12), matches, text };
+        };
+
+        const findBestElement = () => {
+          if (!pageContainsCourse()) return null;
+
+          const selectors = [
+            "tr",
+            "[role='row']",
+            "li",
+            ".el-table__row",
+            ".ant-table-row",
+            ".ivu-table-row",
+            ".list-item",
+            ".course-item",
+            ".result-item",
+            ".card",
+            "section",
+            "article",
+            "div",
+          ];
+          let best = null;
+
+          for (const element of Array.from(document.querySelectorAll(selectors.join(",")))) {
+            const tagName = element.tagName;
+            if (tagName === "SCRIPT" || tagName === "STYLE") continue;
+
+            const scored = scoreElement(element);
+            if (!scored) continue;
+            if (!best || scored.score > best.score) {
+              best = { element, ...scored };
+            }
+          }
+
+          return best;
+        };
+
+        const clearPreviousHighlight = () => {
+          for (const element of Array.from(
+            document.querySelectorAll("[data-course-monitor-highlight='true']")
+          )) {
+            element.style.outline = "";
+            element.style.boxShadow = "";
+            element.style.backgroundColor = "";
+            element.removeAttribute("data-course-monitor-highlight");
+          }
+        };
+
+        const reveal = (match) => {
+          clearPreviousHighlight();
+          match.element.setAttribute("data-course-monitor-highlight", "true");
+          match.element.scrollIntoView({ block: "center", inline: "nearest" });
+          match.element.style.outline = "4px solid #ff3b30";
+          match.element.style.boxShadow = "0 0 0 6px rgba(255, 59, 48, 0.25)";
+          match.element.style.backgroundColor = "rgba(255, 245, 157, 0.45)";
+          return {
+            found: true,
+            matchedText: elementText(match.element).replace(/\s+/g, " ").trim().slice(0, 240),
+          };
+        };
+
+        const candidates = [];
+        const addCandidate = (element) => {
+          if (element && !candidates.includes(element)) candidates.push(element);
+        };
+        addCandidate(document.scrollingElement || document.documentElement);
+
+        for (const element of Array.from(document.querySelectorAll("*"))) {
+          const style = window.getComputedStyle(element);
+          const overflow = `${style.overflowY} ${style.overflow}`;
+          const isScrollable =
+            element.scrollHeight > element.clientHeight + 20 &&
+            !/(hidden|clip)/.test(overflow);
+
+          if (isScrollable) addCandidate(element);
+          if (candidates.length >= maxContainers) break;
+        }
+
+        const firstMatch = findBestElement();
+        if (firstMatch) return reveal(firstMatch);
+
+        for (const element of candidates.slice(0, maxContainers)) {
+          const originalTop = element.scrollTop;
+          const maxTop = Math.max(0, element.scrollHeight - element.clientHeight);
+          if (maxTop < 20) continue;
+
+          for (let step = 0; step <= maxSteps; step += 1) {
+            const nextTop = Math.min(maxTop, step * stepPixels);
+            element.scrollTop = nextTop;
+            element.dispatchEvent(new Event("scroll", { bubbles: true }));
+            window.dispatchEvent(new Event("scroll"));
+            await sleep(delayMs);
+
+            const match = findBestElement();
+            if (match) return reveal(match);
+            if (nextTop >= maxTop) break;
+          }
+
+          element.scrollTop = originalTop;
+          element.dispatchEvent(new Event("scroll", { bubbles: true }));
+        }
+
+        return { found: false, matchedText: "" };
+      },
+      {
+        needles,
+        stepPixels: config.assistScrollStepPixels ?? 900,
+        delayMs: config.assistScrollDelayMs ?? 50,
+        maxSteps: config.assistScrollMaxSteps ?? 20,
+        maxContainers: config.assistScrollMaxContainers ?? 3,
+      }
+    );
+  } catch (error) {
+    return { found: false, matchedText: "", error: error.message };
+  }
+}
+
+export async function revealCourseOnPage(page, course, config = {}) {
+  const needles = revealNeedles(course);
+  if (typeof page.bringToFront === "function") {
+    await page.bringToFront();
+  }
+
+  if (needles.length === 0) {
+    return { found: false, matchedText: "" };
+  }
+
+  const frames = typeof page.frames === "function" ? page.frames() : [page];
+  let lastResult = { found: false, matchedText: "" };
+
+  for (const frame of frames) {
+    const result = await revealCourseInFrame(frame, needles, config);
+    if (result?.found) return result;
+    lastResult = result || lastResult;
+  }
+
+  return lastResult;
+}
+
 export async function refreshCoursePage(page, config = {}) {
   const refreshMode = config.refreshMode || "soft";
 

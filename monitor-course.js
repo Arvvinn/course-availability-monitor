@@ -13,6 +13,7 @@ import {
   courseStatusKey,
   createSimulatedOpenResult,
   parseCapacity,
+  revealCourseOnPage,
   refreshCoursePage,
   statusLabel,
 } from "./monitor-core.js";
@@ -56,6 +57,12 @@ function getConfig() {
     autoScrollDelayMs: readNumber("AUTO_SCROLL_DELAY_MS", 50),
     autoScrollMaxSteps: readNumber("AUTO_SCROLL_MAX_STEPS", 20),
     autoScrollMaxContainers: readNumber("AUTO_SCROLL_MAX_CONTAINERS", 3),
+    assistOnOpen: readBool("ASSIST_ON_OPEN", true),
+    beepOnOpen: readBool("BEEP_ON_OPEN", true),
+    assistScrollStepPixels: readNumber("ASSIST_SCROLL_STEP_PIXELS", 900),
+    assistScrollDelayMs: readNumber("ASSIST_SCROLL_DELAY_MS", 50),
+    assistScrollMaxSteps: readNumber("ASSIST_SCROLL_MAX_STEPS", 20),
+    assistScrollMaxContainers: readNumber("ASSIST_SCROLL_MAX_CONTAINERS", 3),
   };
 }
 
@@ -300,6 +307,22 @@ async function saveScreenshot(page, config) {
   return screenshotPath;
 }
 
+async function assistOpenCourse(page, course, config) {
+  if (config.beepOnOpen) {
+    output.write("\x07\x07\x07");
+  }
+
+  if (!config.assistOnOpen) return;
+
+  const result = await revealCourseOnPage(page, course, config);
+  if (result.found) {
+    console.log(`  已在浏览器中定位并高亮课程：${courseDisplayLabel(course)}`);
+    return;
+  }
+
+  console.warn(`  未能自动定位课程，请手动搜索：${courseDisplayLabel(course)}`);
+}
+
 async function runCheck(page, courses, config) {
   console.log(`\n[${formatTime()}] 开始刷新并检查页面...`);
   try {
@@ -328,6 +351,10 @@ async function runCheck(page, courses, config) {
     console.log(`- ${line}`);
 
     if (shouldNotify(result, previous, config)) {
+      if (result.status === "open") {
+        await assistOpenCourse(page, result.course, config);
+      }
+
       const alertText = buildAlertText(result, screenshotPath, page.url());
       await sendFeishu(config, alertText);
       console.log(`  已发送飞书提醒：${courseDisplayLabel(result.course)}`);

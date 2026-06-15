@@ -10,6 +10,7 @@
 - 默认每 1 分钟检查一次。
 - 默认不保存截图，只读取页面文字。
 - 默认会快速滚动页面和可滚动列表，尽量读取不在当前屏幕内的课程。
+- 检测到有余量时，默认会聚焦浏览器、滚动定位并高亮匹配课程，同时终端响铃；仍然需要你手动点击选课。
 
 ## 适用场景
 
@@ -129,6 +130,8 @@ REFRESH_MODE=soft
 
 如果课程列表很长，脚本默认会自动滚动页面和可滚动列表，把滚动过程中出现的文字合并后再匹配课程。这个过程通常只需要几秒，不需要人工滚轮。
 
+检测到某门课出现可选余量后，脚本默认会把浏览器窗口切到前台，尝试滚动到匹配的教学班并用红色描边高亮，同时让终端响铃。它不会点击页面上的“选课”按钮，也不会提交任何选课操作。
+
 ## 常用配置
 
 `.env` 里可以改：
@@ -143,6 +146,12 @@ AUTO_SCROLL_STEP_PIXELS=900
 AUTO_SCROLL_DELAY_MS=50
 AUTO_SCROLL_MAX_STEPS=20
 AUTO_SCROLL_MAX_CONTAINERS=3
+ASSIST_ON_OPEN=true
+BEEP_ON_OPEN=true
+ASSIST_SCROLL_STEP_PIXELS=900
+ASSIST_SCROLL_DELAY_MS=50
+ASSIST_SCROLL_MAX_STEPS=20
+ASSIST_SCROLL_MAX_CONTAINERS=3
 BROWSER_CHANNEL=msedge
 HEADLESS=false
 SEND_UNCHANGED_ALERTS=false
@@ -159,6 +168,12 @@ ALERT_ON_UNCERTAIN=true
 - `AUTO_SCROLL_DELAY_MS`：每次滚动后等待页面更新的时间。
 - `AUTO_SCROLL_MAX_STEPS`：每个可滚动区域最多滚动多少步。
 - `AUTO_SCROLL_MAX_CONTAINERS`：最多扫描多少个可滚动区域。
+- `ASSIST_ON_OPEN`：检测到有余量时，是否聚焦浏览器、滚动定位并高亮匹配课程，默认 `true`。
+- `BEEP_ON_OPEN`：检测到有余量时，是否让终端响铃，默认 `true`。
+- `ASSIST_SCROLL_STEP_PIXELS`：辅助定位时每次滚动的像素距离。
+- `ASSIST_SCROLL_DELAY_MS`：辅助定位时每次滚动后等待页面更新的时间。
+- `ASSIST_SCROLL_MAX_STEPS`：辅助定位时每个可滚动区域最多滚动多少步。
+- `ASSIST_SCROLL_MAX_CONTAINERS`：辅助定位时最多扫描多少个可滚动区域。
 - `BROWSER_CHANNEL`：默认 `msedge`，也可以改成 `chrome`。
 - `SEND_UNCHANGED_ALERTS`：默认只在状态变化时提醒，改成 `true` 会每次都提醒。
 - `ALERT_ON_UNCERTAIN`：页面匹配到课程但没解析出余量时是否提醒。
@@ -178,4 +193,4 @@ ALERT_ON_UNCERTAIN=true
 - 电脑不要休眠，不要关闭脚本打开的浏览器。
 - 如果教务系统登录过期，需要重新登录。
 - 脚本只能根据页面文字判断，不能保证 100% 准确。
-- 收到提醒后，仍然需要你自己打开教务系统确认并手动选课。
+- 收到提醒后，仍然需要你自己确认并手动选课；脚本不会自动抢课、不会自动提交。
