@@ -8,3 +8,9 @@ test("private course config is ignored and example config is published", async (
   assert.match(gitignore, /^courses\.json$/m);
   await access("courses.example.json");
 });
+
+test("uncertain course matches do not alert by default", async () => {
+  const envExample = await readFile(".env.example", "utf8");
+
+  assert.match(envExample, /^ALERT_ON_UNCERTAIN=false$/m);
+});

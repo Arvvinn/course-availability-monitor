@@ -2,10 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  analyzeCourseText,
   buildAlertText,
   courseDisplayLabel,
   courseStatusKey,
   createSimulatedOpenResult,
+  openCourseDetailFromOverview,
   parseCapacity,
   revealCourseOnPage,
   refreshCoursePage,
@@ -79,6 +81,41 @@ test("capacity parser handles negative remaining values from selected/exempt pag
   assert.equal(capacity.exempted, 0);
   assert.equal(capacity.available, -81);
   assert.match(capacity.source, /剩余/);
+});
+
+test("capacity parser handles table detail rows with zero available seats", () => {
+  const capacity = parseCapacity(`
+    上课班号 上课班级名称 任课教师 授课方式 限选人数 已选/免听 可选人数 上课时间
+    071 健身健美 徐怡康 体育 45 45/0 0 1-18周 二(3-4节)
+  `);
+
+  assert.equal(capacity.limit, 45);
+  assert.equal(capacity.selected, 45);
+  assert.equal(capacity.exempted, 0);
+  assert.equal(capacity.available, 0);
+});
+
+test("course analysis reads the matching section row instead of the first detail row", () => {
+  const result = analyzeCourseText(
+    `
+    选课-[00300003] 大学体育（三）
+    上课班号 上课班级名称 开课校区 任课教师 授课方式 限选人数 已选/免听 可选人数 上课时间
+    041 跆拳道 金明校区 牛露露 体育 45 45/0 0 1-18周 一(7-8节)
+    071 健身健美 金明校区 徐怡康 体育 45 44/0 1 1-18周 二(3-4节)
+  `,
+    {
+      id: "00300003",
+      name: "大学体育（三）",
+      teacher: "徐怡康",
+      classCode: "000689-071",
+      keywords: ["00300003", "大学体育（三）", "徐怡康", "000689-071", "健身健美"],
+      strongKeywords: ["00300003", "大学体育（三）", "000689-071"],
+    }
+  );
+
+  assert.equal(result.status, "open");
+  assert.equal(result.available, 1);
+  assert.match(result.capacitySource, /071/);
 });
 
 test("course status key distinguishes sections of the same course", () => {
@@ -193,4 +230,38 @@ test("reveal helper focuses page and asks frames to locate course without clicki
   assert.equal(result.found, true);
   assert.equal(calls[0], "bringToFront");
   assert.deepEqual(calls[1].needles, ["CLASS001", "COURSE001", "示例课程", "张三", "方向A"]);
+});
+
+test("course detail opener targets the overview course row only", async () => {
+  const calls = [];
+  const frame = {
+    async evaluate(_fn, payload) {
+      calls.push(payload);
+      return { opened: true, matchedText: "[00300003] 大学体育（三） 选择" };
+    },
+  };
+  const page = {
+    frames() {
+      return [frame];
+    },
+    async waitForTimeout(ms) {
+      calls.push(["wait", ms]);
+    },
+  };
+
+  const result = await openCourseDetailFromOverview(
+    page,
+    {
+      id: "00300003",
+      name: "大学体育（三）",
+      teacher: "徐怡康",
+      classCode: "000689-071",
+      keywords: ["00300003", "大学体育（三)", "徐怡康", "000689-071", "健身健美"],
+    },
+    { courseDetailWaitMs: 1200 }
+  );
+
+  assert.equal(result.opened, true);
+  assert.deepEqual(calls[0].needles, ["00300003", "大学体育（三）"]);
+  assert.deepEqual(calls[1], ["wait", 1200]);
 });

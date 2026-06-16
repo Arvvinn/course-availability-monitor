@@ -7,12 +7,14 @@ import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { chromium } from "playwright-core";
 import {
+  analyzeCourseText,
   buildAlertText,
+  collectCourseDetailTexts,
   collectPageText,
   courseDisplayLabel,
   courseStatusKey,
   createSimulatedOpenResult,
-  parseCapacity,
+  normalizeText,
   revealCourseOnPage,
   refreshCoursePage,
   statusLabel,
@@ -49,7 +51,7 @@ function getConfig() {
     browserChannel: process.env.BROWSER_CHANNEL || "msedge",
     headless: readBool("HEADLESS", false),
     sendUnchangedAlerts: readBool("SEND_UNCHANGED_ALERTS", false),
-    alertOnUncertain: readBool("ALERT_ON_UNCERTAIN", true),
+    alertOnUncertain: readBool("ALERT_ON_UNCERTAIN", false),
     refreshMode: process.env.REFRESH_MODE || "soft",
     saveScreenshots: readBool("SAVE_SCREENSHOTS", false),
     autoScroll: readBool("AUTO_SCROLL", true),
@@ -63,20 +65,13 @@ function getConfig() {
     assistScrollDelayMs: readNumber("ASSIST_SCROLL_DELAY_MS", 50),
     assistScrollMaxSteps: readNumber("ASSIST_SCROLL_MAX_STEPS", 20),
     assistScrollMaxContainers: readNumber("ASSIST_SCROLL_MAX_CONTAINERS", 3),
+    scanCourseDetails: readBool("SCAN_COURSE_DETAILS", true),
+    courseDetailWaitMs: readNumber("COURSE_DETAIL_WAIT_MS", 1500),
   };
 }
 
 function isMissingWebhook(webhook) {
   return !webhook || webhook.includes("replace-with-your-webhook");
-}
-
-function normalizeText(value) {
-  return String(value ?? "")
-    .replace(/[ \t\r\n]+/g, "")
-    .replace(/[－–—]/g, "-")
-    .replace(/[／]/g, "/")
-    .replace(/[（]/g, "(")
-    .replace(/[）]/g, ")");
 }
 
 function formatTime(date = new Date()) {
@@ -137,69 +132,6 @@ async function loadCourses() {
       normalizedStrongKeywords: strongKeywords.map(normalizeText),
     };
   });
-}
-
-function getCourseContext(text, course) {
-  const rawNeedles = [...course.strongKeywords, ...course.keywords].filter(Boolean);
-  const indexes = rawNeedles
-    .map((needle) => text.indexOf(needle))
-    .filter((index) => index >= 0);
-
-  if (indexes.length === 0) {
-    return text.slice(0, 2500);
-  }
-
-  const start = Math.max(0, Math.min(...indexes) - 500);
-  const end = Math.min(text.length, Math.max(...indexes) + 1000);
-  return text.slice(start, end);
-}
-
-function analyzeCourse(text, course) {
-  const normalizedPage = normalizeText(text);
-  const matchedKeywords = course.keywords.filter((keyword) =>
-    normalizedPage.includes(normalizeText(keyword))
-  );
-  const strongMatches = course.strongKeywords.filter((keyword) =>
-    normalizedPage.includes(normalizeText(keyword))
-  );
-
-  const present = strongMatches.length >= 1 && matchedKeywords.length >= 2;
-  if (!present) {
-    return {
-      course,
-      status: "not_found",
-      available: null,
-      matchedKeywords,
-      context: "",
-      capacitySource: "",
-      fingerprint: "not_found",
-    };
-  }
-
-  const context = getCourseContext(text, course);
-  const capacity = parseCapacity(context);
-  let status = "uncertain";
-  if (typeof capacity.available === "number") {
-    status = capacity.available > 0 ? "open" : "full";
-  }
-
-  return {
-    course,
-    status,
-    available: capacity.available,
-    limit: capacity.limit,
-    selected: capacity.selected,
-    matchedKeywords,
-    context,
-    capacitySource: capacity.source,
-    fingerprint: [
-      status,
-      capacity.available ?? "unknown",
-      capacity.limit ?? "unknown",
-      capacity.selected ?? "unknown",
-      matchedKeywords.join("|"),
-    ].join("::"),
-  };
 }
 
 function shouldNotify(result, previous, config) {
@@ -333,10 +265,15 @@ async function runCheck(page, courses, config) {
   }
 
   const screenshotPath = await saveScreenshot(page, config);
-  const text = await collectPageText(page, config);
+  const overviewText = await collectPageText(page, config);
+  const detailTexts = await collectCourseDetailTexts(page, courses, config);
+  if (config.scanCourseDetails) {
+    console.log(`课程详情页扫描：${detailTexts.length} 个`);
+  }
+  const text = [overviewText, ...detailTexts].filter(Boolean).join("\n\n--- course detail ---\n\n");
   const lastStatus = await readJson(paths.lastStatus, {});
   const nextStatus = { ...lastStatus };
-  const results = courses.map((course) => analyzeCourse(text, course));
+  const results = courses.map((course) => analyzeCourseText(text, course));
 
   for (const result of results) {
     const statusKey = courseStatusKey(result.course);

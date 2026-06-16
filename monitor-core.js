@@ -82,6 +82,147 @@ export function createSimulatedOpenResult(course, available = 1) {
   };
 }
 
+export function normalizeText(value) {
+  return String(value ?? "")
+    .replace(/[ \t\r\n]+/g, "")
+    .replace(/[－–—]/g, "-")
+    .replace(/[，]/g, "/")
+    .replace(/[（]/g, "(")
+    .replace(/[）]/g, ")");
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function strongKeywordsFor(course) {
+  if (Array.isArray(course?.strongKeywords) && course.strongKeywords.length > 0) {
+    return course.strongKeywords;
+  }
+
+  return [course?.id, course?.name, course?.classCode].filter(Boolean);
+}
+
+function sectionCodeFor(course) {
+  const classCode = String(course?.classCode ?? "").trim();
+  if (!classCode) return "";
+  return classCode.split("-").at(-1) || classCode;
+}
+
+function getMatchingDetailRowContext(text, course) {
+  const lines = String(text ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const header = lines.find((line) => {
+    const normalized = normalizeText(line);
+    return (
+      normalized.includes("限选人数") &&
+      normalized.includes("已选/免听") &&
+      normalized.includes("可选人数")
+    );
+  });
+
+  if (!header) return "";
+
+  const sectionCode = sectionCodeFor(course);
+  const normalizedSectionCode = normalizeText(sectionCode);
+  const sectionPattern = normalizedSectionCode
+    ? new RegExp(`(^|\\D)${escapeRegExp(normalizedSectionCode)}(\\D|$)`)
+    : null;
+  const normalizedTeacher = normalizeText(course?.teacher);
+  const normalizedClassCode = normalizeText(course?.classCode);
+  const keywords = Array.isArray(course?.keywords) ? course.keywords : [];
+  const normalizedKeywords = keywords.map(normalizeText).filter(Boolean);
+
+  for (const line of lines) {
+    const normalizedLine = normalizeText(line);
+    const classCodeMatches =
+      (normalizedClassCode && normalizedLine.includes(normalizedClassCode)) ||
+      (sectionPattern && sectionPattern.test(normalizedLine));
+    if (!classCodeMatches) continue;
+
+    const teacherMatches = normalizedTeacher && normalizedLine.includes(normalizedTeacher);
+    const keywordMatches = normalizedKeywords.filter((keyword) =>
+      normalizedLine.includes(keyword)
+    ).length;
+
+    if (teacherMatches || keywordMatches >= 2) {
+      return `${header}\n${line}`;
+    }
+  }
+
+  return "";
+}
+
+function getCourseContext(text, course) {
+  const detailRowContext = getMatchingDetailRowContext(text, course);
+  if (detailRowContext) return detailRowContext;
+
+  const rawNeedles = [...strongKeywordsFor(course), ...(course?.keywords ?? [])].filter(Boolean);
+  const indexes = rawNeedles
+    .map((needle) => text.indexOf(needle))
+    .filter((index) => index >= 0);
+
+  if (indexes.length === 0) {
+    return text.slice(0, 2500);
+  }
+
+  const start = Math.max(0, Math.min(...indexes) - 500);
+  const end = Math.min(text.length, Math.max(...indexes) + 1000);
+  return text.slice(start, end);
+}
+
+export function analyzeCourseText(text, course) {
+  const normalizedPage = normalizeText(text);
+  const keywords = Array.isArray(course?.keywords) ? course.keywords : [];
+  const strongKeywords = strongKeywordsFor(course);
+  const matchedKeywords = keywords.filter((keyword) =>
+    normalizedPage.includes(normalizeText(keyword))
+  );
+  const strongMatches = strongKeywords.filter((keyword) =>
+    normalizedPage.includes(normalizeText(keyword))
+  );
+
+  const present = strongMatches.length >= 1 && matchedKeywords.length >= 2;
+  if (!present) {
+    return {
+      course,
+      status: "not_found",
+      available: null,
+      matchedKeywords,
+      context: "",
+      capacitySource: "",
+      fingerprint: "not_found",
+    };
+  }
+
+  const context = getCourseContext(text, course);
+  const capacity = parseCapacity(context);
+  let status = "uncertain";
+  if (typeof capacity.available === "number") {
+    status = capacity.available > 0 ? "open" : "full";
+  }
+
+  return {
+    course,
+    status,
+    available: capacity.available,
+    limit: capacity.limit,
+    selected: capacity.selected,
+    matchedKeywords,
+    context,
+    capacitySource: capacity.source,
+    fingerprint: [
+      status,
+      capacity.available ?? "unknown",
+      capacity.limit ?? "unknown",
+      capacity.selected ?? "unknown",
+      matchedKeywords.join("|"),
+    ].join("::"),
+  };
+}
+
 async function visibleText(target) {
   try {
     return await target.locator("body").innerText({ timeout: 1500 });
@@ -160,10 +301,24 @@ async function tryClickSearch(page) {
 }
 
 export function parseCapacity(context) {
-  const compact = String(context ?? "")
+  const normalized = String(context ?? "")
     .replace(/[／]/g, "/")
-    .replace(/[：]/g, ":")
+    .replace(/[：]/g, ":");
+  const compact = normalized
     .replace(/\s+/g, "");
+
+  const detailTableRow = normalized.match(
+    /限选人数[\s\S]*?已选\/免听[\s\S]*?可选人数[\s\S]*?(-?\d+)\s+(\d+)\/(\d+)\s+(-?\d+)(?=\s|$)/
+  );
+  if (detailTableRow) {
+    return {
+      limit: Number(detailTableRow[1]),
+      selected: Number(detailTableRow[2]),
+      exempted: Number(detailTableRow[3]),
+      available: Number(detailTableRow[4]),
+      source: detailTableRow[0].replace(/\s+/g, " ").trim(),
+    };
+  }
 
   const limitSelectedAvailable = compact.match(
     /限选\/已选\/可选:?(-?\d+)\/(-?\d+)\/(-?\d*)/
@@ -319,6 +474,148 @@ export async function collectPageText(page, config = {}) {
   }
 
   return parts.join("\n\n--- frame ---\n\n");
+}
+
+function overviewNeedles(course) {
+  return uniqueNonEmpty([course?.id, course?.name]);
+}
+
+async function clickCourseOverviewRow(frame, needles) {
+  try {
+    return await frame.evaluate(({ needles }) => {
+      const normalize = (value) =>
+        String(value ?? "")
+          .replace(/[ \t\r\n]+/g, "")
+          .replace(/[－–—]/g, "-")
+          .replace(/[，]/g, "/")
+          .replace(/[（]/g, "(")
+          .replace(/[）]/g, ")");
+      const normalizedNeedles = needles.map(normalize).filter(Boolean);
+      const textOf = (element) =>
+        String(
+          element?.innerText ||
+            element?.textContent ||
+            element?.value ||
+            element?.getAttribute?.("aria-label") ||
+            element?.getAttribute?.("title") ||
+            ""
+        ).trim();
+      const clickableText = (element) => textOf(element).replace(/\s+/g, "");
+      const rowMatches = (element) => {
+        const text = normalize(textOf(element));
+        return normalizedNeedles.every((needle) => text.includes(needle));
+      };
+
+      const rows = Array.from(
+        document.querySelectorAll("tr,[role='row'],.el-table__row,.ant-table-row,.ivu-table-row")
+      );
+
+      for (const row of rows) {
+        if (!rowMatches(row)) continue;
+
+        const clickables = Array.from(
+          row.querySelectorAll("a,button,[role='button'],input[type='button'],input[type='submit']")
+        );
+        const target = clickables.find((element) => clickableText(element) === "选择");
+        if (!target) continue;
+
+        target.click();
+        return {
+          opened: true,
+          matchedText: textOf(row).replace(/\s+/g, " ").slice(0, 240),
+        };
+      }
+
+      return { opened: false, matchedText: "" };
+    }, { needles });
+  } catch (error) {
+    return { opened: false, matchedText: "", error: error.message };
+  }
+}
+
+export async function openCourseDetailFromOverview(page, course, config = {}) {
+  const needles = overviewNeedles(course);
+  if (needles.length === 0) return { opened: false, matchedText: "" };
+
+  const frames = typeof page.frames === "function" ? page.frames() : [page];
+  let lastResult = { opened: false, matchedText: "" };
+
+  for (const frame of frames) {
+    const result = await clickCourseOverviewRow(frame, needles);
+    if (result?.opened) {
+      if (typeof page.waitForTimeout === "function") {
+        await page.waitForTimeout(config.courseDetailWaitMs ?? 1500);
+      }
+      return result;
+    }
+    lastResult = result || lastResult;
+  }
+
+  return lastResult;
+}
+
+async function clickReturnFromDetail(frame) {
+  try {
+    return await frame.evaluate(() => {
+      const textOf = (element) =>
+        String(
+          element?.innerText ||
+            element?.textContent ||
+            element?.value ||
+            element?.getAttribute?.("aria-label") ||
+            element?.getAttribute?.("title") ||
+            ""
+        )
+          .replace(/\s+/g, "")
+          .trim();
+      const clickables = Array.from(
+        document.querySelectorAll("a,button,[role='button'],input[type='button'],input[type='submit']")
+      );
+      const target = clickables.find((element) => textOf(element) === "返回");
+      if (!target) return false;
+      target.click();
+      return true;
+    });
+  } catch {
+    return false;
+  }
+}
+
+export async function returnToCourseOverview(page, config = {}) {
+  const frames = typeof page.frames === "function" ? page.frames() : [page];
+
+  for (const frame of frames) {
+    if (await clickReturnFromDetail(frame)) {
+      if (typeof page.waitForTimeout === "function") {
+        await page.waitForTimeout(config.courseDetailWaitMs ?? 1500);
+      }
+      return { returned: true };
+    }
+  }
+
+  return { returned: false };
+}
+
+export async function collectCourseDetailTexts(page, courses, config = {}) {
+  if (!config.scanCourseDetails) return [];
+
+  const courseGroups = new Map();
+  for (const course of courses) {
+    const key = overviewNeedles(course).join("::");
+    if (key && !courseGroups.has(key)) courseGroups.set(key, course);
+  }
+
+  const texts = [];
+  for (const course of courseGroups.values()) {
+    const opened = await openCourseDetailFromOverview(page, course, config);
+    if (!opened.opened) continue;
+
+    const detailText = await collectPageText(page, config);
+    if (detailText.trim()) texts.push(detailText);
+    await returnToCourseOverview(page, config);
+  }
+
+  return texts;
 }
 
 function revealNeedles(course) {

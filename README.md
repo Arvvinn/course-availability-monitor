@@ -154,10 +154,12 @@ ASSIST_SCROLL_STEP_PIXELS=900
 ASSIST_SCROLL_DELAY_MS=50
 ASSIST_SCROLL_MAX_STEPS=20
 ASSIST_SCROLL_MAX_CONTAINERS=3
+SCAN_COURSE_DETAILS=true
+COURSE_DETAIL_WAIT_MS=1500
 BROWSER_CHANNEL=msedge
 HEADLESS=false
 SEND_UNCHANGED_ALERTS=false
-ALERT_ON_UNCERTAIN=true
+ALERT_ON_UNCERTAIN=false
 ```
 
 说明：
@@ -176,9 +178,11 @@ ALERT_ON_UNCERTAIN=true
 - `ASSIST_SCROLL_DELAY_MS`：辅助定位时每次滚动后等待页面更新的时间。
 - `ASSIST_SCROLL_MAX_STEPS`：辅助定位时每个可滚动区域最多滚动多少步。
 - `ASSIST_SCROLL_MAX_CONTAINERS`：辅助定位时最多扫描多少个可滚动区域。
+- `SCAN_COURSE_DETAILS`：是否从课程总表页自动点进每门课的教学班详情页读取余量，默认 `true`。只点击课程总表里的“选择”入口，不点击教学班单选框，不点击“提交”。
+- `COURSE_DETAIL_WAIT_MS`：进入或返回课程详情页后等待页面更新的时间，默认 1500 毫秒。
 - `BROWSER_CHANNEL`：默认 `msedge`，也可以改成 `chrome`。
 - `SEND_UNCHANGED_ALERTS`：默认只在状态变化时提醒，改成 `true` 会每次都提醒。
-- `ALERT_ON_UNCERTAIN`：页面匹配到课程但没解析出余量时是否提醒。
+- `ALERT_ON_UNCERTAIN`：页面匹配到课程但没解析出余量时是否提醒，默认 `false`。如果停在课程总表页，还没有进入教学班详情页，通常会出现这种状态；不建议打开。
 
 ## 本地文件
 
