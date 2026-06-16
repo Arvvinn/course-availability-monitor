@@ -7,6 +7,7 @@ import {
   courseDisplayLabel,
   courseStatusKey,
   createSimulatedOpenResult,
+  focusBrowserWindow,
   openCourseDetailFromOverview,
   parseCapacity,
   revealCourseOnPage,
@@ -236,6 +237,46 @@ test("reveal helper focuses page and asks frames to locate course without clicki
   assert.equal(result.found, true);
   assert.equal(calls[0], "bringToFront");
   assert.deepEqual(calls[1].needles, ["CLASS001", "COURSE001", "示例课程", "张三", "方向A"]);
+});
+
+test("focus helper restores and maximizes the browser window before bringing it forward", async () => {
+  const calls = [];
+  const session = {
+    async send(method, params) {
+      calls.push([method, params]);
+      if (method === "Browser.getWindowForTarget") return { windowId: 12 };
+      return {};
+    },
+    async detach() {
+      calls.push(["detach"]);
+    },
+  };
+  const page = {
+    context() {
+      return {
+        async newCDPSession(target) {
+          assert.equal(target, page);
+          calls.push(["newCDPSession"]);
+          return session;
+        },
+      };
+    },
+    async bringToFront() {
+      calls.push(["bringToFront"]);
+    },
+  };
+
+  const result = await focusBrowserWindow(page, { maximizeOnOpen: true });
+
+  assert.equal(result.maximized, true);
+  assert.deepEqual(calls, [
+    ["newCDPSession"],
+    ["Browser.getWindowForTarget", undefined],
+    ["Browser.setWindowBounds", { windowId: 12, bounds: { windowState: "normal" } }],
+    ["Browser.setWindowBounds", { windowId: 12, bounds: { windowState: "maximized" } }],
+    ["detach"],
+    ["bringToFront"],
+  ]);
 });
 
 test("course detail opener targets the overview course row only", async () => {

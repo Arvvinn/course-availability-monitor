@@ -627,6 +627,44 @@ function revealNeedles(course) {
   ]);
 }
 
+export async function focusBrowserWindow(page, config = {}) {
+  const result = { maximized: false, broughtToFront: false };
+
+  if (config.maximizeOnOpen !== false) {
+    let session;
+    try {
+      session = await page.context()?.newCDPSession?.(page);
+      if (session) {
+        const { windowId } = await session.send("Browser.getWindowForTarget");
+        await session.send("Browser.setWindowBounds", {
+          windowId,
+          bounds: { windowState: "normal" },
+        });
+        await session.send("Browser.setWindowBounds", {
+          windowId,
+          bounds: { windowState: "maximized" },
+        });
+        result.maximized = true;
+      }
+    } catch {
+      result.maximized = false;
+    } finally {
+      try {
+        await session?.detach?.();
+      } catch {
+        // Ignore detach failures; the page focus fallback below is still useful.
+      }
+    }
+  }
+
+  if (typeof page.bringToFront === "function") {
+    await page.bringToFront();
+    result.broughtToFront = true;
+  }
+
+  return result;
+}
+
 async function revealCourseInFrame(frame, needles, config) {
   try {
     return await frame.evaluate(
@@ -781,9 +819,7 @@ async function revealCourseInFrame(frame, needles, config) {
 
 export async function revealCourseOnPage(page, course, config = {}) {
   const needles = revealNeedles(course);
-  if (typeof page.bringToFront === "function") {
-    await page.bringToFront();
-  }
+  await focusBrowserWindow(page, config);
 
   if (needles.length === 0) {
     return { found: false, matchedText: "" };

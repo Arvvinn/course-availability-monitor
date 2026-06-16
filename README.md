@@ -150,6 +150,7 @@ AUTO_SCROLL_MAX_STEPS=20
 AUTO_SCROLL_MAX_CONTAINERS=3
 ASSIST_ON_OPEN=true
 BEEP_ON_OPEN=true
+MAXIMIZE_ON_OPEN=true
 ASSIST_SCROLL_STEP_PIXELS=900
 ASSIST_SCROLL_DELAY_MS=50
 ASSIST_SCROLL_MAX_STEPS=20
@@ -174,6 +175,7 @@ ALERT_ON_UNCERTAIN=false
 - `AUTO_SCROLL_MAX_CONTAINERS`：最多扫描多少个可滚动区域。
 - `ASSIST_ON_OPEN`：检测到有余量时，是否聚焦浏览器、滚动定位并高亮匹配课程，默认 `true`。
 - `BEEP_ON_OPEN`：检测到有余量时，是否让终端响铃，默认 `true`。
+- `MAXIMIZE_ON_OPEN`：检测到有余量时，是否尝试恢复并最大化浏览器窗口，默认 `true`。如果系统不允许程序抢前台，至少会尝试把浏览器标签页切到前台。
 - `ASSIST_SCROLL_STEP_PIXELS`：辅助定位时每次滚动的像素距离。
 - `ASSIST_SCROLL_DELAY_MS`：辅助定位时每次滚动后等待页面更新的时间。
 - `ASSIST_SCROLL_MAX_STEPS`：辅助定位时每个可滚动区域最多滚动多少步。

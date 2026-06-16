@@ -61,6 +61,7 @@ function getConfig() {
     autoScrollMaxContainers: readNumber("AUTO_SCROLL_MAX_CONTAINERS", 3),
     assistOnOpen: readBool("ASSIST_ON_OPEN", true),
     beepOnOpen: readBool("BEEP_ON_OPEN", true),
+    maximizeOnOpen: readBool("MAXIMIZE_ON_OPEN", true),
     assistScrollStepPixels: readNumber("ASSIST_SCROLL_STEP_PIXELS", 900),
     assistScrollDelayMs: readNumber("ASSIST_SCROLL_DELAY_MS", 50),
     assistScrollMaxSteps: readNumber("ASSIST_SCROLL_MAX_STEPS", 20),
