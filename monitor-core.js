@@ -516,7 +516,9 @@ async function clickCourseOverviewRow(frame, needles) {
         const clickables = Array.from(
           row.querySelectorAll("a,button,[role='button'],input[type='button'],input[type='submit']")
         );
-        const target = clickables.find((element) => clickableText(element) === "选择");
+        const target =
+          clickables.find((element) => clickableText(element) === "查看") ||
+          clickables.find((element) => clickableText(element) === "选择");
         if (!target) continue;
 
         target.click();

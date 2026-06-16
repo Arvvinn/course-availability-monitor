@@ -178,7 +178,7 @@ ALERT_ON_UNCERTAIN=false
 - `ASSIST_SCROLL_DELAY_MS`：辅助定位时每次滚动后等待页面更新的时间。
 - `ASSIST_SCROLL_MAX_STEPS`：辅助定位时每个可滚动区域最多滚动多少步。
 - `ASSIST_SCROLL_MAX_CONTAINERS`：辅助定位时最多扫描多少个可滚动区域。
-- `SCAN_COURSE_DETAILS`：是否从课程总表页自动点进每门课的教学班详情页读取余量，默认 `true`。只点击课程总表里的“选择”入口，不点击教学班单选框，不点击“提交”。
+- `SCAN_COURSE_DETAILS`：是否从课程总表页自动点进每门课的教学班详情页读取余量，默认 `true`。已选课程优先点击“查看”，未选课程点击“选择”；不点击“退选”，不点击教学班单选框，不点击“提交”。
 - `COURSE_DETAIL_WAIT_MS`：进入或返回课程详情页后等待页面更新的时间，默认 1500 毫秒。
 - `BROWSER_CHANNEL`：默认 `msedge`，也可以改成 `chrome`。
 - `SEND_UNCHANGED_ALERTS`：默认只在状态变化时提醒，改成 `true` 会每次都提醒。

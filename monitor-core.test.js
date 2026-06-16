@@ -265,3 +265,56 @@ test("course detail opener targets the overview course row only", async () => {
   assert.deepEqual(calls[0].needles, ["00300003", "大学体育（三）"]);
   assert.deepEqual(calls[1], ["wait", 1200]);
 });
+
+test("course detail opener uses view for selected courses and does not click withdraw", async () => {
+  const clicked = [];
+  const makeElement = (text, children = []) => ({
+    innerText: text,
+    textContent: text,
+    value: "",
+    getAttribute() {
+      return "";
+    },
+    querySelectorAll() {
+      return children;
+    },
+    click() {
+      clicked.push(text);
+    },
+  });
+  const withdraw = makeElement("退选");
+  const view = makeElement("查看");
+  const row = makeElement("[00300003] 大学体育（三） 选中 查看 退选", [
+    withdraw,
+    view,
+  ]);
+  const previousDocument = globalThis.document;
+  const frame = {
+    async evaluate(fn, payload) {
+      globalThis.document = {
+        querySelectorAll() {
+          return [row];
+        },
+      };
+      try {
+        return fn(payload);
+      } finally {
+        globalThis.document = previousDocument;
+      }
+    },
+  };
+  const page = {
+    frames() {
+      return [frame];
+    },
+    async waitForTimeout() {},
+  };
+
+  const result = await openCourseDetailFromOverview(page, {
+    id: "00300003",
+    name: "大学体育（三）",
+  });
+
+  assert.equal(result.opened, true);
+  assert.deepEqual(clicked, ["查看"]);
+});
