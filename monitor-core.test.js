@@ -11,6 +11,7 @@ import {
   parseCapacity,
   revealCourseOnPage,
   refreshCoursePage,
+  statusLabel,
 } from "./monitor-core.js";
 
 test("soft refresh does not use browser-level reload", async () => {
@@ -116,6 +117,11 @@ test("course analysis reads the matching section row instead of the first detail
   assert.equal(result.status, "open");
   assert.equal(result.available, 1);
   assert.match(result.capacitySource, /071/);
+});
+
+test("uncertain and missing matches are displayed as no available seats", () => {
+  assert.equal(statusLabel({ status: "uncertain" }), "暂无余量");
+  assert.equal(statusLabel({ status: "not_found" }), "暂无余量");
 });
 
 test("course status key distinguishes sections of the same course", () => {

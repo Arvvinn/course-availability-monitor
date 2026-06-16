@@ -36,11 +36,7 @@ function formatTime(date = new Date()) {
 
 export function statusLabel(result) {
   if (result.status === "open") return `有可选名额：${result.available}`;
-  if (result.status === "full") return "暂无余量";
-  if (result.status === "uncertain") {
-    return "已匹配到课程，但未能解析可选人数，需要人工确认";
-  }
-  return "本页未匹配到该课程";
+  return "暂无余量";
 }
 
 export function buildAlertText(result, screenshotPath, pageUrl, options = {}) {
